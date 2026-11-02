@@ -1,45 +1,61 @@
 name: Build Harry Potter Bezza APK
 
 on:
-  workflow_dispatch:
+workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout project
-        uses: actions/checkout@v4
+steps:
+  - name: Checkout project
+    uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+  - name: Setup Android SDK
+    uses: android-actions/setup-android@v3
 
-      - name: Install SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+  - name: Install SDK
+    run: |
+      sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+  - name: Setup Gradle
+    uses: gradle/actions/setup-gradle@v4
+    with:
+      gradle-version: '8.9'
 
-      - name: Extract project
-        run: |
-          mkdir buildsrc
-          ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
-          test -n "$ZIP_FILE"
-          unzip -o "$ZIP_FILE" -d buildsrc
+  - name: Extract project
+    run: |
+      mkdir -p buildsrc
+      ZIP_FILE=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
 
-      - name: Build APK
-        run: gradle -p buildsrc assembleDebug
+      if [ -z "$ZIP_FILE" ]; then
+        echo "ERROR: ZIP projek tidak dijumpai dalam repository."
+        exit 1
+      fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: HarryPotter-Bezza-APK
-          path: buildsrc/app/build/outputs/apk/debug/app-debug.apk
+      echo "Extracting: $ZIP_FILE"
+      unzip -o "$ZIP_FILE" -d buildsrc
+
+  - name: Check Android project
+    run: |
+      if [ ! -f buildsrc/settings.gradle ] && [ ! -f buildsrc/settings.gradle.kts ]; then
+        echo "ERROR: Fail settings.gradle tidak dijumpai."
+        find buildsrc -maxdepth 3 -type f | head -100
+        exit 1
+      fi
+
+  - name: Build APK
+    run: gradle -p buildsrc assembleDebug
+
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: HarryPotter-Bezza-APK
+      path: buildsrc/**/build/outputs/apk/debug/*.apk
+      if-no-files-found: error
